@@ -248,7 +248,8 @@ useEffect(() => {
             logout,
             handleGenerate,
             handleDelete,
-            updateProjectFiles
+            updateProjectFiles,
+            handleChat
             
         }}>
             {children}
