@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/api";
+import debounce from "lodash.debounce"
+
 
 const AppContext = createContext(undefined);
 
@@ -178,6 +180,51 @@ export function AppContextProvider({children}){
         } 
     },[navigate,user]);
 
+    const handleChat = useCallback(async(prompt) =>{
+        if(!activeProjects?._id || !user) return;
+        setChatLoading(true);
+        try{
+        const {data} = await api.post(`/api/projects/${activeProjects._id}/chat`,{prompt});
+        setActiveProjects(data);
+        if(data.errors && data.errors.length > 0){
+            toast.error(data.errors[0])
+        }else{
+            toast.success("Response added to chat")
+        }
+        }catch(error){
+            console.log("Failed to generate project",error);
+            toast.error(error?.response?.data?.error || "Failed to generate");
+        }
+        finally{
+            setChatLoading(false);
+        } 
+    },[navigate,user,activeProjects]);
+
+
+    const debouncedSave = React.useMemo(
+  () => debounce(async (files, id) => {
+    try {
+      await api.put(`/api/projects/${id}/files`, {files})
+    } catch (err) {
+      console.error("Failed to auto-save files:", err);
+      toast.error("Failed to save code modifications");
+    }
+  }, 1000), [],
+)
+
+useEffect(() => {
+  return () => {
+    debouncedSave.cancel();
+  }
+}, [debouncedSave])
+
+    const updateProjectFiles = useCallback(
+        async (params) => {
+            if(!activeProjects || !user) return;
+            debouncedSave(files,activeProjects._id);
+        },[activeProjects,user,debouncedSave]
+    )
+
 
     return (
         <AppContext.Provider value={{
@@ -188,6 +235,7 @@ export function AppContextProvider({children}){
             projects,
             loadingProjects,
             activeProjects,
+            activeProject: activeProjects,
             loadingActiveProject,
             activeFile,
             setActiveFile,
@@ -197,9 +245,10 @@ export function AppContextProvider({children}){
             setShowCode,
             loadProjects,
             loadProject,
+            logout,
             handleGenerate,
             handleDelete,
-            
+            updateProjectFiles
             
         }}>
             {children}
