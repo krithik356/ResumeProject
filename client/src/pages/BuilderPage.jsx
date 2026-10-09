@@ -30,16 +30,6 @@ const BuilderPage = () => {
     loadProject(id)
   },[id])
 
-  useEffect(()=>{
-    if (!id || !activeProject) return;
-      if(activeProject.status === "pending" || activeProject.status === "error"){
-        const interval = setInterval(()=>{
-          loadProject(id,true);
-        },2000);
-        return () => clearInterval(interval); 
-      }
-  },[id,loadProject,activeProject])
-
   const handleOpenPreview  = ()=>{
     if(!id) return;
     window.open(`/preview/${id}`,"_blank")
