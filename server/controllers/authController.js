@@ -1,9 +1,9 @@
-import { set } from "mongoose";
-import { User } from "../models/User";
+import jwt from "jsonwebtoken";
+import { User } from "../models/User.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 //helper to set cookies
-const setSessionCookie = (req,res) => {
+const setSessionCookie = (res,payload) => {
     const token = jwt.sign(payload,JWT_SECRET,{
         expiresIn:"30d"
     });
