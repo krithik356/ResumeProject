@@ -1,9 +1,9 @@
 // POST /api/projects/:id/chat
 // Send a revision prompt and return updated project.
 
-import { Project } from "../models/Project";
-import { reviseProject } from "../services/ai";
-import { applyOperations } from "../services/diff";
+import { Project } from "../models/Project.js";
+import { reviseProject } from "../services/ai.js";
+import { applyOperations } from "../services/diff.js";
 
 
 export function buildManifest(files){
@@ -114,6 +114,6 @@ export async function chat(req, res) {
         project.status = "completed";
         await project.save();
         res.status(500).json({error:error.message || "Failed to process revision request"});
-        
+
     }
 }

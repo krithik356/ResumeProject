@@ -5,7 +5,7 @@ import { chat } from "../controllers/chatController.js";
 const projectRouter = Router();
 
 // Public Route
-projectRouter.get("public/:id",getPublicProject);
+projectRouter.get("/public/:id",getPublicProject);
 
 //Protect all following routes
 projectRouter.use(authMiddleware);
@@ -13,7 +13,7 @@ projectRouter.use(authMiddleware);
 projectRouter.post("/",createProject)
 projectRouter.get("/",listProjects)
 projectRouter.get("/:id",getProject)
-projectRouter.put("/:id",updateProjectFiles)
+projectRouter.put("/:id/files",updateProjectFiles)
 projectRouter.delete("/:id",deleteProject)
 projectRouter.post("/:id/publish",publishProject)
 

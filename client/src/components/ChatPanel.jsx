@@ -1,6 +1,6 @@
 import React, { useEffect ,useState} from 'react'
 
-import {  UserRoundIcon, Wand2Icon } from 'lucide-react';
+import {  UserRoundIcon, Wand2Icon, BotIcon } from 'lucide-react';
 
 import {useRef} from 'react';
 import PromptInput from './PromptInput';

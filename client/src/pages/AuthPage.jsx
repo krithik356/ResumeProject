@@ -25,7 +25,6 @@ const AuthPage = ({mode}) => {
       }else{
         await register(name,email,password);
       }
-      navigate("/");
     }catch(error){
       setError(error.message)
     } finally{
