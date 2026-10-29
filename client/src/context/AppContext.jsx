@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/api";
-import debounce from "lodash.debounce"
+import debounce from "lodash.debounce";
+import toast from "react-hot-toast";
 
 
 const AppContext = createContext(undefined);
@@ -107,12 +108,15 @@ export function AppContextProvider({children}){
         const {data} = await api.get(`/api/projects/${id}`);
         setActiveProjects(data);
 
-        //Default file selection
+        //Default file selection — only pick a default if no file is currently selected
         const files = Object.keys(data.files);
         if(files.length > 0){
-            setActiveFile((prev) =>{
-                if(files.includes(prev)) return prev;
-                if(files.includes("/App.jsx")) return "/App.jsx"
+            setActiveFile((prev) => {
+                // If a file is already selected and still exists, keep it
+                if(prev && files.includes(prev)) return prev;
+                // Only auto-select when no valid file is active
+                if(files.includes("/App.jsx")) return "/App.jsx";
+                if(files.includes("/App.js")) return "/App.js";
                 return files[0];
             });
         }
@@ -221,7 +225,7 @@ useEffect(() => {
     const updateProjectFiles = useCallback(
         async (params) => {
             if(!activeProjects || !user) return;
-            debouncedSave(files,activeProjects._id);
+            debouncedSave(params,activeProjects._id);
         },[activeProjects,user,debouncedSave]
     )
 

@@ -19,6 +19,7 @@ export async function createProject(req,res){
         res.status(401).json({error: "Unauthorized"});
         return;
     }
+    try{
     // Create project in DB immediately with "pending" status 
     const project = await Project.create({
         name: "Planning project...",
@@ -30,7 +31,7 @@ export async function createProject(req,res){
 
         ],
         version:0,
-        owner:req.user.id,
+        owner:req.user.userId,
         status:"pending",
         filesPlanned:[],
         filesGenerated:[],
@@ -56,12 +57,13 @@ export async function createProject(req,res){
         currentFile:project.currentFile,
         error:project.error,
         createdAt:project.createdAt,
-        
-        
     });
+    }catch(error){
+        console.error("[createProject] Error:", error.message);
+        res.status(500).json({error: error.message || "Failed to create project"});
+    }
 }
-   
-// Background worker to progressively generate files and update database in real-time.
+   // Background worker to progressively generate files and update database in real-time.
 async function runBackgroundGeneration(projectId, prompt) {
     try{
     console.log(`[Background AI] Starting generation for project ${projectId}`);
@@ -100,8 +102,8 @@ async function runBackgroundGeneration(projectId, prompt) {
      if (project) {
     project.files = project.files || {};
     project.files[path] = {
-        content: code,
-        hash: hashContent(code)
+        content: content,
+        hash: hashContent(content)
     };
 
     project.filesGenerated = [
@@ -123,34 +125,21 @@ async function runBackgroundGeneration(projectId, prompt) {
     }
 })
 console.log(`[Background AI] Successfully generated project ${projectId}`);
-const project = await Project.findById(projectId);
-if (project) {
-    project.files = project.files || {};
-    project.files[path] = {
-        content: code,
-        hash: hashContent(code)
-    };
-
-    project.filesGenerated = [
-        ...(project.filesGenerated || []),
-        path
-    ];
-
-    project.messages.push({
-        role: "assistant",
-        content: `Created file "${path}"`,
-        timestamp: new Date(),
+    await Project.findByIdAndUpdate(projectId, {
+        status: "completed",
+        currentFile: null,
+        $push: {
+            messages: {
+                role: "assistant",
+                content: "Project generation complete!",
+                timestamp: new Date(),
+            }
+        }
     });
-
-    project.currentFile = null;
-    project.markModified("files");
-
-    await project.save();
-}
     }catch(error){
         console.error(`[Background AI] Generation failed for project ${projectId}:`, error);
         await Project.findByIdAndUpdate(projectId,{
-            status: "error",
+            status: "failed",
             error: error.message || "Generation failed",
             $push:{
                 messages:{
@@ -261,9 +250,7 @@ export async function updateProjectFiles(req, res) {
 
     const filesObj = {};
     for(const [path,entry] of Object.entries(project.files)){
-        if(typeof content === "string"){
-            filesObj[path] = entry.content;
-        }
+        filesObj[path] = entry.content;
     }
     res.json({
      _id: project._id,

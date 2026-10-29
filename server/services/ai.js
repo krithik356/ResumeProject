@@ -3,7 +3,6 @@ import { generateObject } from 'ai';
 import pMap from "p-map";
 import { FileCodeSchema, FilePlanSchema, RevisionResultSchema } from './aiSchemas.js';
 import { buildFileCodeSystem, FILE_PLAN_SYSTEM, REVISE_SYSTEM } from './prompts.js';
-import { el } from 'zod/v4/locales';
 import { normalizeContent } from './contentNormalizer.js';
 import { validateAndFixCode, validateRevisionContent } from './codeValidator.js';
 
@@ -141,17 +140,16 @@ export async function generateProject(prompt, callbacks){
         const failedPaths = pendingFiles.map((f)=>f.path).join(", ");
         console.error(`[AI] Failed to generate ${pendingFiles.length} files after all retry rounds: ${failedPaths}`);
 
-        if (pendingFiles.some((f) => f.path === "/App.js")){
+        for (const file of pendingFiles) {
             const ext = file.path.split(".").pop()?.toLowerCase();
-
             if(ext === "css"){
-                files[file.path] = `/* ${file.description} — Generation failed, please retry */\n`
-            }else{
-                files[file.path] = "import React from 'react';\n\n" + 
-                `// ⚠️ This file could not be generated. Please retry.\n` +
-                `// Purpose: ${file.description}\n\n` + 
-                "export default function Placeholder() {\n" +
-                "  return (\n" +
+                files[file.path] = `/* ${file.description} — Generation failed, please retry */\n`;
+            } else {
+                files[file.path] = "import React from 'react';\n\n" +
+                    `// ⚠️ This file could not be generated. Please retry.\n` +
+                    `// Purpose: ${file.description}\n\n` +
+                    "export default function Placeholder() {\n" +
+                    "  return (\n" +
                     "    <div className='p-8 text-center text-zinc-400'>\n" +
                     "      <p>⚠️ Component failed to generate. Please try again.</p>\n" +
                     "    </div>\n" +
@@ -159,8 +157,8 @@ export async function generateProject(prompt, callbacks){
                     "}\n";
             }
         }
-
     }
+
 
     if(!files["/App.js"]){
         throw new Error("AI did not generate /App.js entry point");
