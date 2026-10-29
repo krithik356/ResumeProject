@@ -10,7 +10,24 @@ const app = express();
 
 await connectDB();
 
-app.use(cors({origin:process.env.ORIGINS.split(","),credentials:true}));
+const allowedOrigins = (process.env.ORIGINS || "")
+  .split(",")
+  .map(origin => origin.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // allow requests with no origin (like mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      console.warn(`CORS blocked for origin: ${origin}. Allowed:`, allowedOrigins);
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(cookieParser());
 
