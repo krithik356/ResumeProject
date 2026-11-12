@@ -34,6 +34,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.get("/",(req,res)=> res.send("Server is live"))
+app.get("/health",(req,res)=> res.json({status:"ok",uptime:process.uptime()}))
 app.use('/api/auth',authRouter);
 app.use("/api/projects",projectRouter);
 
