@@ -188,13 +188,16 @@ export function AppContextProvider({children}){
         if(!activeProjects?._id || !user) return;
         setChatLoading(true);
         try{
-        const {data} = await api.post(`/api/projects/${activeProjects._id}/chat`,{prompt});
-        setActiveProjects(data);
-        if(data.errors && data.errors.length > 0){
-            toast.error(data.errors[0])
-        }else{
-            toast.success("Response added to chat")
-        }
+            const {data} = await api.post(`/api/projects/${activeProjects._id}/chat`,{prompt});
+            // Always update project state — rollback responses also return 200 with valid files
+            setActiveProjects(data);
+            if(data.rolledBack){
+                toast.error("Changes couldn't be applied — your project has been restored to its previous state.");
+            } else if(data.errors && data.errors.length > 0){
+                toast.error(`Applied with warnings: ${data.errors[0]}`);
+            } else {
+                toast.success("Changes applied successfully!");
+            }
         }catch(error){
             console.log("Failed to generate project",error);
             toast.error(error?.response?.data?.error || "Failed to generate");
