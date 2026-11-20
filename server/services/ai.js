@@ -7,7 +7,7 @@ import { normalizeContent } from './contentNormalizer.js';
 import { validateAndFixCode, validateRevisionContent } from './codeValidator.js';
 
 // --- OpenRouter Model Client Setup ---
-const MODEL = process.env.OPENROUTER_MODEL || "recursive/flint-v1.0:free";
+const MODEL = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.1-8b-instruct:free";
 const MAX_CONCURRENCY = parseInt(process.env.AI_MAX_CONCURRENCY || "6", 10)
 
 const openrouter = createOpenAI({
