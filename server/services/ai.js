@@ -7,14 +7,14 @@ import { normalizeContent } from './contentNormalizer.js';
 import { validateAndFixCode, validateRevisionContent } from './codeValidator.js';
 
 // --- OpenRouter Model Client Setup ---
-// Primary model from env, with a fallback chain of known-free non-thinking models
-const PRIMARY_MODEL = process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free";
+// Primary model from env, with a robust fallback chain of verified-working free models
+const PRIMARY_MODEL = process.env.OPENROUTER_MODEL || "particle-ai/particle-1:free";
 const FALLBACK_MODELS = [
-    "google/gemma-4-31b-it:free",
-    "nvidia/nemotron-3.5-lightning:free",
-    "google/gemma-4-26b-a4b-it:free",
     "particle-ai/particle-1:free",
-    "inclusionai/ling-3.2-flash:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "baidu/ernie-5.5-flash-preview:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
     "openrouter/free",
 ];
 const MAX_CONCURRENCY = parseInt(process.env.AI_MAX_CONCURRENCY || "6", 10)
@@ -24,7 +24,7 @@ const openrouter = createOpenAI({
     apiKey: process.env.OPENROUTER_API_KEY,
 })
 
-// Try generateObject with fallback models if primary fails due to availability
+// Try generateObject with fallback models — always try next model if one fails (rate limit, deprecation, upstream error)
 async function generateObjectWithFallback(params) {
     const modelsToTry = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter(m => m !== PRIMARY_MODEL)];
     let lastError;
@@ -32,29 +32,12 @@ async function generateObjectWithFallback(params) {
         try {
             const result = await generateObject({ ...params, model: openrouter(modelId) });
             if (modelId !== PRIMARY_MODEL) {
-                console.log(`[AI] Used fallback model: ${modelId}`);
+                console.log(`[AI] Successfully used fallback model: ${modelId}`);
             }
             return result;
         } catch (err) {
-            const msg = (err?.message || String(err) || "").toLowerCase();
-            // Fall through on model-unavailability, deprecation, or routing errors
-            const isModelError = 
-                msg.includes("unavailable") ||
-                msg.includes("not found") ||
-                msg.includes("no provider") ||
-                msg.includes("authentication") ||
-                msg.includes("deprecated") ||
-                msg.includes("no longer available") ||
-                msg.includes("unavailable for free") ||
-                msg.includes("not available") ||
-                msg.includes("is no longer");
-
-            if (isModelError) {
-                console.warn(`[AI] Model ${modelId} unavailable, trying next fallback. Error: ${msg.slice(0, 150)}`);
-                lastError = err;
-                continue;
-            }
-            throw err; // Any other error (rate limit, bad schema, etc.) — propagate immediately
+            console.warn(`[AI] Model ${modelId} failed: ${err?.message || err}. Trying next fallback model...`);
+            lastError = err;
         }
     }
     throw lastError;
