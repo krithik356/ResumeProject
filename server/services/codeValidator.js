@@ -2,7 +2,68 @@
 // Repairs common AI code generation errors before saving to DB using regex checks
 
 // Void HTML elements that must be self-closed in JSX
-const VOID_ELEMENTS = ["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"];
+const VOID_ELEMENTS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
+
+// Safely self-closes void HTML elements in JSX without corrupting JSX expressions like onChange={(e) => ...}
+export function safelyCloseVoidElements(code) {
+    let result = "";
+    let i = 0;
+    while (i < code.length) {
+        if (code[i] === "<" && /[a-zA-Z]/.test(code[i + 1] || "")) {
+            let tagStart = i + 1;
+            let tagEnd = tagStart;
+            while (tagEnd < code.length && /[a-zA-Z0-9-]/.test(code[tagEnd])) {
+                tagEnd++;
+            }
+            const tagName = code.slice(tagStart, tagEnd).toLowerCase();
+
+            if (VOID_ELEMENTS.has(tagName)) {
+                let j = tagEnd;
+                let inQuotes = null;
+                let braceDepth = 0;
+                let isSelfClosed = false;
+
+                while (j < code.length) {
+                    const char = code[j];
+                    const prevChar = j > 0 ? code[j - 1] : "";
+
+                    if (inQuotes) {
+                        if (char === inQuotes && prevChar !== "\\") {
+                            inQuotes = null;
+                        }
+                    } else if (char === '"' || char === "'" || char === "`") {
+                        inQuotes = char;
+                    } else if (char === "{") {
+                        braceDepth++;
+                    } else if (char === "}") {
+                        if (braceDepth > 0) braceDepth--;
+                    } else if (braceDepth === 0) {
+                        if (char === ">") {
+                            if (prevChar === "/") {
+                                isSelfClosed = true;
+                            }
+                            break;
+                        }
+                    }
+                    j++;
+                }
+
+                if (j < code.length && !isSelfClosed) {
+                    result += code.slice(i, j) + " />";
+                    i = j + 1;
+                    continue;
+                } else if (j < code.length) {
+                    result += code.slice(i, j + 1);
+                    i = j + 1;
+                    continue;
+                }
+            }
+        }
+        result += code[i];
+        i++;
+    }
+    return result;
+}
 
 // Validate and auto-fix common AI-generated code issues
 export function validateAndFixCode(code, filePath, context) {
@@ -33,29 +94,29 @@ export function validateAndFixCode(code, filePath, context) {
 
     // --- JS/JSX-specific fixes ---
 
-    // 2. Fix `class=` → `className=` in JSX (but not inside strings or comments)
-    // Match class= that appears inside JSX tags (after < and before >)
-    const classFixRegex = /(<[a-zA-Z][^>]*?)\bclass=/g;
-    if (classFixRegex.test(code)) {
-        code = code.replace(/(<[a-zA-Z][^>]*?)\bclass=/g, "$1className=");
+    // 2. Fix `class=` → `className=` in JSX
+    if (/\bclass=(["'{])/g.test(code)) {
+        code = code.replace(/\bclass=(["'{])/g, "className=$1");
         warnings.push(`${filePath}: Fixed 'class=' → 'className='`);
     }
 
     // 3. Fix `for=` → `htmlFor=` in JSX labels
-    const forFixRegex = /(<label[^>]*?)\bfor=/gi;
-    if (forFixRegex.test(code)) {
-        code = code.replace(/(<label[^>]*?)\bfor=/gi, "$1htmlFor=");
+    if (/\bfor=(["'{])/g.test(code)) {
+        code = code.replace(/\bfor=(["'{])/g, "htmlFor=$1");
         warnings.push(`${filePath}: Fixed 'for=' → 'htmlFor='`);
     }
 
-    // 4. Self-close void elements that aren't self-closed
-    for (const tag of VOID_ELEMENTS) {
-        // Match <tag ... > that is NOT already self-closed (no / before >)
-        const voidRegex = new RegExp(`<${tag}(\\s[^>]*?)?(?<!/)>`, "gi");
-        if (voidRegex.test(code)) {
-            code = code.replace(new RegExp(`<${tag}(\\s[^>]*?)?(?<!/)>`, "gi"), (match, attrs) => `<${tag}${attrs || ""} />`);
-            warnings.push(`${filePath}: Self-closed <${tag}> elements`);
-        }
+    // 4. Repair any accidental corrupted arrow functions '= />' → '=>'
+    if (/=\s*\/>/.test(code)) {
+        code = code.replace(/=\s*\/>/g, "=>");
+        warnings.push(`${filePath}: Repaired corrupted arrow function '= />' → '=>'`);
+    }
+
+    // 5. Self-close void elements safely without corrupting JSX expressions
+    const beforeVoidFix = code;
+    code = safelyCloseVoidElements(code);
+    if (code !== beforeVoidFix) {
+        warnings.push(`${filePath}: Safely self-closed void elements`);
     }
 
     // 5. Ensure exactly one default export exists
@@ -134,26 +195,28 @@ export function validateRevisionContent(content, filePath, op) {
     const warnings = [];
 
     // Fix class → className
-    const classFixRegex = /(<[a-zA-Z][^>]*?)\bclass=/g;
-    if (classFixRegex.test(content)) {
-        content = content.replace(/(<[a-zA-Z][^>]*?)\bclass=/g, "$1className=");
+    if (/\bclass=(["'{])/g.test(content)) {
+        content = content.replace(/\bclass=(["'{])/g, "className=$1");
         warnings.push(`${filePath}: Fixed 'class=' → 'className=' in replacement`);
     }
 
     // Fix for → htmlFor
-    const forFixRegex = /(<label[^>]*?)\bfor=/gi;
-    if (forFixRegex.test(content)) {
-        content = content.replace(/(<label[^>]*?)\bfor=/gi, "$1htmlFor=");
+    if (/\bfor=(["'{])/g.test(content)) {
+        content = content.replace(/\bfor=(["'{])/g, "htmlFor=$1");
         warnings.push(`${filePath}: Fixed 'for=' → 'htmlFor=' in replacement`);
     }
 
-    // Self-close void elements
-    for (const tag of VOID_ELEMENTS) {
-        const voidRegex = new RegExp(`<${tag}(\\s[^>]*?)?(?<!/)>`, "gi");
-        if (voidRegex.test(content)) {
-            content = content.replace(new RegExp(`<${tag}(\\s[^>]*?)?(?<!/)>`, "gi"), (match, attrs) => `<${tag}${attrs || ""} />`);
-            warnings.push(`${filePath}: Self-closed <${tag}> in replacement`);
-        }
+    // Repair corrupted arrow functions
+    if (/=\s*\/>/.test(content)) {
+        content = content.replace(/=\s*\/>/g, "=>");
+        warnings.push(`${filePath}: Repaired corrupted arrow function '= />' → '=>'`);
+    }
+
+    // Self-close void elements safely
+    const beforeVoidFix = content;
+    content = safelyCloseVoidElements(content);
+    if (content !== beforeVoidFix) {
+        warnings.push(`${filePath}: Self-closed void elements in replacement`);
     }
 
     return { content, warnings };

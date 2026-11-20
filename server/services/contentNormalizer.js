@@ -29,5 +29,8 @@ export function normalizeContent(content) {
     // replace every \" with a plain " throughout the file.
     content = content.replace(/\\"/g, '"');
 
+    // Repair accidental corrupted arrow functions '= />' → '=>'
+    content = content.replace(/=\s*\/>/g, "=>");
+
     return content;
 }

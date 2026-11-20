@@ -186,7 +186,11 @@ export async function getProject(req, res) {
     }
     const filesObj = {};
     for(const [path,entry] of Object.entries(project.files)){
-        filesObj[path] = entry.content;
+        let content = typeof entry === "string" ? entry : (entry?.content ?? "");
+        if (typeof content === "string") {
+            content = content.replace(/=\s*\/>/g, "=>");
+        }
+        filesObj[path] = content;
     }
     res.json({
         _id: project._id,
@@ -250,7 +254,11 @@ export async function updateProjectFiles(req, res) {
 
     const filesObj = {};
     for(const [path,entry] of Object.entries(project.files)){
-        filesObj[path] = entry.content;
+        let content = typeof entry === "string" ? entry : (entry?.content ?? "");
+        if (typeof content === "string") {
+            content = content.replace(/=\s*\/>/g, "=>");
+        }
+        filesObj[path] = content;
     }
     res.json({
      _id: project._id,
@@ -297,7 +305,11 @@ export async function getPublicProject(req, res) {
     }
     const filesObj = {};
     for(const [path,entry] of Object.entries(project.files)){
-        filesObj[path] = entry.content;
+        let content = typeof entry === "string" ? entry : (entry?.content ?? "");
+        if (typeof content === "string") {
+            content = content.replace(/=\s*\/>/g, "=>");
+        }
+        filesObj[path] = content;
     }
     res.json({
         _id: project._id,
