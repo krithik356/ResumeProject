@@ -7,7 +7,13 @@ import { normalizeContent } from './contentNormalizer.js';
 import { validateAndFixCode, validateRevisionContent } from './codeValidator.js';
 
 // --- OpenRouter Model Client Setup ---
-const MODEL = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.1-8b-instruct:free";
+// Primary model from env, with a fallback chain of known-free non-thinking models
+const PRIMARY_MODEL = process.env.OPENROUTER_MODEL || "qwen/qwen3-8b:free";
+const FALLBACK_MODELS = [
+    "qwen/qwen3-8b:free",
+    "google/gemma-3-12b-it:free",
+    "mistralai/mistral-7b-instruct:free",
+];
 const MAX_CONCURRENCY = parseInt(process.env.AI_MAX_CONCURRENCY || "6", 10)
 
 const openrouter = createOpenAI({
@@ -15,7 +21,30 @@ const openrouter = createOpenAI({
     apiKey: process.env.OPENROUTER_API_KEY,
 })
 
-const model = openrouter(MODEL);
+// Try generateObject with fallback models if primary fails due to availability
+async function generateObjectWithFallback(params) {
+    const modelsToTry = [PRIMARY_MODEL, ...FALLBACK_MODELS.filter(m => m !== PRIMARY_MODEL)];
+    let lastError;
+    for (const modelId of modelsToTry) {
+        try {
+            const result = await generateObject({ ...params, model: openrouter(modelId) });
+            if (modelId !== PRIMARY_MODEL) {
+                console.log(`[AI] Used fallback model: ${modelId}`);
+            }
+            return result;
+        } catch (err) {
+            const msg = err?.message || "";
+            // Only fall through on model-unavailability errors
+            if (msg.includes("unavailable") || msg.includes("not found") || msg.includes("no provider") || msg.includes("Authentication")) {
+                console.warn(`[AI] Model ${modelId} unavailable, trying next. Error: ${msg.slice(0, 120)}`);
+                lastError = err;
+                continue;
+            }
+            throw err; // Any other error (rate limit, bad schema, etc.) — propagate immediately
+        }
+    }
+    throw lastError;
+}
 
 // Generate a single file's code
 async function generateSingleFile(file, allFiles, prompt, alreadyGeneratedFiles){
@@ -24,8 +53,7 @@ async function generateSingleFile(file, allFiles, prompt, alreadyGeneratedFiles)
      const userMsg = `Project: ${prompt}\n\nWrite the complete code for: ${file.path}\nPurpose: ${file.description}`;
 
      console.log(`[AI] Creating file: ${file.path}...`);
-     const { object } = await generateObject({
-        model,
+     const { object } = await generateObjectWithFallback({
         schema: FileCodeSchema,
         system,
         prompt: userMsg,
@@ -55,8 +83,7 @@ async function generateSingleFile(file, allFiles, prompt, alreadyGeneratedFiles)
 export async function generateProject(prompt, callbacks){
     // Phase 1: Plan
     console.log(`[AI] Phase 1: Planning file structure for: "${prompt.slice(0,80)}..."`);
-    const { object: plan } = await generateObject({
-        model,
+    const { object: plan } = await generateObjectWithFallback({
         schema: FilePlanSchema,
         system: FILE_PLAN_SYSTEM,
         prompt: `Plan a React website for: ${prompt}`,
@@ -195,8 +222,7 @@ export async function reviseProject(prompt, manifest, relevantFiles, recentMessa
 
     console.log("[AI] Revising project...");
 
-    const { object: rawParsed } = await generateObject({
-        model,
+    const { object: rawParsed } = await generateObjectWithFallback({
         schema: RevisionResultSchema,
         system: REVISE_SYSTEM,
         prompt: contextParts.join("\n"),
