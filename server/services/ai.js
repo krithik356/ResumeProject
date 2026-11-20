@@ -15,6 +15,7 @@ const FALLBACK_MODELS = [
     "google/gemma-4-26b-a4b-it:free",
     "particle-ai/particle-1:free",
     "inclusionai/ling-3.2-flash:free",
+    "openrouter/free",
 ];
 const MAX_CONCURRENCY = parseInt(process.env.AI_MAX_CONCURRENCY || "6", 10)
 
@@ -35,10 +36,21 @@ async function generateObjectWithFallback(params) {
             }
             return result;
         } catch (err) {
-            const msg = err?.message || "";
-            // Only fall through on model-unavailability errors
-            if (msg.includes("unavailable") || msg.includes("not found") || msg.includes("no provider") || msg.includes("Authentication") || msg.includes("deprecated") || msg.includes("no longer available") || msg.includes("unavailable for free")) {
-                console.warn(`[AI] Model ${modelId} unavailable, trying next. Error: ${msg.slice(0, 120)}`);
+            const msg = (err?.message || String(err) || "").toLowerCase();
+            // Fall through on model-unavailability, deprecation, or routing errors
+            const isModelError = 
+                msg.includes("unavailable") ||
+                msg.includes("not found") ||
+                msg.includes("no provider") ||
+                msg.includes("authentication") ||
+                msg.includes("deprecated") ||
+                msg.includes("no longer available") ||
+                msg.includes("unavailable for free") ||
+                msg.includes("not available") ||
+                msg.includes("is no longer");
+
+            if (isModelError) {
+                console.warn(`[AI] Model ${modelId} unavailable, trying next fallback. Error: ${msg.slice(0, 150)}`);
                 lastError = err;
                 continue;
             }
