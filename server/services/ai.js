@@ -8,11 +8,13 @@ import { validateAndFixCode, validateRevisionContent } from './codeValidator.js'
 
 // --- OpenRouter Model Client Setup ---
 // Primary model from env, with a fallback chain of known-free non-thinking models
-const PRIMARY_MODEL = process.env.OPENROUTER_MODEL || "qwen/qwen3-8b:free";
+const PRIMARY_MODEL = process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free";
 const FALLBACK_MODELS = [
-    "qwen/qwen3-8b:free",
-    "google/gemma-3-12b-it:free",
-    "mistralai/mistral-7b-instruct:free",
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3.5-lightning:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "particle-ai/particle-1:free",
+    "inclusionai/ling-3.2-flash:free",
 ];
 const MAX_CONCURRENCY = parseInt(process.env.AI_MAX_CONCURRENCY || "6", 10)
 
@@ -35,7 +37,7 @@ async function generateObjectWithFallback(params) {
         } catch (err) {
             const msg = err?.message || "";
             // Only fall through on model-unavailability errors
-            if (msg.includes("unavailable") || msg.includes("not found") || msg.includes("no provider") || msg.includes("Authentication")) {
+            if (msg.includes("unavailable") || msg.includes("not found") || msg.includes("no provider") || msg.includes("Authentication") || msg.includes("deprecated") || msg.includes("no longer available") || msg.includes("unavailable for free")) {
                 console.warn(`[AI] Model ${modelId} unavailable, trying next. Error: ${msg.slice(0, 120)}`);
                 lastError = err;
                 continue;
